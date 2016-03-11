@@ -3,11 +3,17 @@
 The Python source code in the repository requires the following special libraries:
 
 pandas v0.17.1, for using DataFrames to structure data and manipulate it easily
+
 scikit-learn v0.17, for using Python-standard machine learning algorithms
+
 smopy v0.0.3, for displaying images of data overlaid on maps of locations
+
 geopy v1.11.0, for getting latitude/longitude data on an English-language mailing address
 
+
 and the libraries from installing the anaconda client v1.2.1.
+
+
 
 The source code includes the following files:
 
