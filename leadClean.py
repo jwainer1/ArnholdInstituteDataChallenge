@@ -1,0 +1,195 @@
+# -*- coding: utf-8 -*-
+
+
+import pandas as pd
+from pandas import DataFrame
+import matplotlib.pyplot as plt
+import numpy as np
+import pickle
+from geopy.geocoders import Nominatim
+
+#dictionary for converting UHF (United Hospital Fund) codes into ZIP codes, 
+#for which we can get lat/lon values and average them
+UHF2ZIP = {101 : [10463, 10471], 102 : [10466, 10469, 10470, 10475],\
+    103 : [10458, 10467, 10468], 104 : [10461, 10462, 10464, 10465, 10472, 10473],\
+    105 : [10453, 10457, 10460], 106 : [10451, 10452, 10456],\
+    107 : [10454, 10455, 10459, 10474], 201 : [11211, 11222],\
+    202 : [11201, 11205, 11215, 11217, 11231],\
+    203 : [11213, 11212, 11216, 11233, 11238], 204 : [11207, 11208],\
+    205 : [11220, 11232], 206 : [11204, 11218, 11219, 11230],\
+    207 : [11203, 11210, 11225, 11226], 208 : [11234, 11236, 11239],\
+    209 : [11209, 11214, 11228], 210: [11223, 11224, 11229, 11235],\
+    211 : [11206, 11221, 11237], 301 : [10031, 10032, 10033, 10034, 10040],\
+    302 : [10026, 10027, 10030, 10037, 10039], 303 : [10029, 10035],\
+    304 : [10023, 10024, 10025], 305 : [10021, 10028, 10044, 10128],\
+    306 : [10001, 10011, 10018, 10019, 10020, 10036],\
+    307 : [10010, 10016, 10017, 10022], 308 : [10012, 10013, 10014],\
+    309 : [10002, 10003, 10009], 310 : [10004, 10005, 10006, 10007, 10038, 10280],\
+    401 : [11101, 11102, 11103, 11104, 11105, 11106],\
+    402 : [11368, 11369, 11370, 11372, 11373, 11377, 11378],\
+    403 : [11354, 11355, 11356, 11357, 11358, 11359, 11360],\
+    404 : [11361, 11362, 11363, 11364], 405 : [11374, 11375, 11379, 11385],\
+    406 : [11365, 11366, 11367],\
+    407 : [11414, 11415, 11416, 11417, 11418, 11419, 11420, 11421],\
+    408 : [11412, 11423, 11432, 11433, 11434, 11435, 11436],\
+    409 : [11004, 11005, 11411, 11413, 11422, 11426, 11427, 11428, 11429],\
+    410 : [11691, 11692, 11693, 11694, 11695, 11697], 501 : [10302, 10303, 10310],\
+    502 : [10301, 10304, 10305], 503 : [10314],\
+    504 : [10306, 10307, 10308, 10309, 10312]}
+
+UHF2LatLon = {101 : 0, 102 : 0, 103 : 0, 104 : 0, 105 : 0, 106 : 0, 107 : 0,\
+    201 : 0, 202 : 0, 203 : 0, 204 : 0, 205 : 0, 206 : 0, 207 : 0, 208 : 0,\
+    209 : 0, 210: 0, 211 : 0, 301 : 0, 302 : 0, 303 : 0, 304 : 0, 305 : 0,\
+    306 : 0, 307 : 0, 308 : 0, 309 : 0, 310 : 0, 401 : 0, 402 : 0, 403 : 0,\
+    404 : 0, 405 : 0, 406 : 0, 407 : 0, 408 : 0, 409 : 0, 410 : 0, 501 : 0,\
+    502 : 0, 503 : 0, 504 : 0}
+
+UHFs = [101, 102, 103, 104, 105, 106, 107, 201, 202, 203, 204, 205, 206, 207,\
+    208, 209, 210, 211, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 401,\
+    402, 403, 404, 405, 406, 407, 408, 409, 410, 501, 502, 503, 504]
+
+def avgLatLonFromZIP(ZIPlist):
+    numEntries = 0
+    geolocator = Nominatim()
+    #return avg of lat/lon values as recovered by geopy
+    numZIPs = len(ZIPlist)
+    latList = np.zeros(numZIPs)
+    lonList = np.zeros(numZIPs)
+    #go through list of ZIP codes, getting lat/lon for everyone
+    for eachZIP in ZIPlist:
+        theZIP = "NYC, New York, " + str(eachZIP)
+        print "trying to decode ZIP ", theZIP
+        keepGoing = True
+        while keepGoing:
+            try:
+                location = geolocator.geocode(theZIP)
+                keepGoing = False
+            except:
+                print "Error in getting geocode data!"
+                keepGoing = True
+        print location.latitude, " / ", location.longitude, " : ", location
+        #ZIP 11695 in queens gives us issues
+        if (eachZIP != 11695):
+            latList[numEntries] = location.latitude
+            lonList[numEntries] = location.longitude
+        else:
+            latList[numEntries] = 40.560025
+            lonList[numEntries] = -73.889998
+            print "Using ", latList[numEntries], " / ", lonList[numEntries], " instead!"
+        numEntries += 1
+    return (latList.mean(), lonList.mean())
+
+#data from NYC's 311.gov site, but edited to change Greek letter mu into u
+filename = 'data/EnvironmentalHealthReport_dataEDITED.csv'
+environmentData = pd.read_csv(filename)
+#this dataset has info on pre-1960 houses with peeling paint, but only for 
+#2002, 2005, and 2008 
+filename = 'data/HousingAndHealthReport_dataEDITED.csv'
+housingData = pd.read_csv(filename)
+#this dataset has info on pre-1960 houses with peeling paint, but only for 
+#2011, so we'll merge this to the previous one
+filename = 'data/Data.csv'
+otherData = pd.read_csv(filename)
+
+
+leadValues = environmentData[environmentData['name'] == \
+    'Elevated (>=10 ug/dL) Blood Lead Levels '] 
+print leadValues.head(10)
+print leadValues.describe()
+print leadValues.info()
+cracksValues = environmentData[environmentData['name'] == 'Homes with Cracks or Holes']
+leaksValues = environmentData[environmentData['name'] == 'Homes with Leaks']
+miceRatsValues = environmentData[environmentData['name'] == \
+    'Homes with Mice or Rats in the Building']
+paintValues = housingData[housingData['name'] == 'Pre-1960 Homes with Peeling Paint']
+peelingValues = otherData[(otherData['name'] == 'Pre-1960 Homes with Peeling Paint') \
+    & (otherData['geo_type_name'] == 'UHF42')]
+print cracksValues.head(10)
+print cracksValues.describe()
+print cracksValues.info()
+print leaksValues.head(10)
+print leaksValues.describe()
+print leaksValues.info()
+print miceRatsValues.head(10)
+print miceRatsValues.describe()
+print miceRatsValues.info()
+print paintValues.head(10)
+print paintValues.describe()
+print paintValues.info()
+print peelingValues.head(10)
+print peelingValues.describe()
+print peelingValues.info()
+#merge the dataframe containing peeling paint data from 2011 with the dataframe
+#containing peeling paint data from 2002, 2005, and 2008
+columnsToAdd = peelingValues[['Unique Id', 'indicator_id', 'name', 'Measure', \
+    'geo_type_name', 'geo_entity_id', 'year_description', 'data_value', 'message']]
+columnsToAdd=columnsToAdd.rename(columns = {'Unique Id':'indicator_data_id'})
+paintValues = paintValues.append(columnsToAdd)
+print paintValues
+
+#how to map the values of a dataframe b (column 0) using the entries of a dictionary a
+#b[3] = b[0].map(a)
+#how to assign a cell in a dataframe as a list instead of a scalar
+#c[0] = [[1,2], 7]
+#get the zip codes for an entry's UHF code, and then the average lat/lon coordinate given the zip codes
+leadValues['ZIPCodes'] = leadValues['geo_entity_id'].map(UHF2ZIP)
+
+#for every UHF, get the lat/lon for their zip codes
+for eachUHF in UHFs:
+    UHF2LatLon[eachUHF] = avgLatLonFromZIP(UHF2ZIP[eachUHF])
+    print "For UHF ", eachUHF, " the average lat/lon is ", UHF2LatLon[eachUHF]
+
+leadValues['LatLon'] = leadValues['geo_entity_id'].map(UHF2LatLon)
+print leadValues.head(10)
+leadValuesLimited = leadValues[(leadValues['year_description'] == 2002) |\
+    (leadValues['year_description'] == 2005) |\
+    (leadValues['year_description'] == 2008) |\
+    (leadValues['year_description'] == 2011)]
+print leadValuesLimited.info()
+
+allValues = pd.DataFrame()
+allValues['Year'] = leadValuesLimited['year_description']
+allValues['UHF'] = leadValuesLimited['geo_entity_id']
+allValues['ZIPCodes'] = leadValuesLimited['ZIPCodes']
+allValues['LatLon'] = leadValuesLimited['LatLon']
+allValues['Elevated (>=10 ug/dL) Blood Lead Levels'] = leadValuesLimited['data_value']
+allValues['BloodLevelsMeasure'] = leadValuesLimited['Measure']
+allValues['BloodLevelsMessage'] = leadValuesLimited['message']
+allValues.index = range(168)
+cracksValues.index = range(168)
+leaksValues.index = range(168)
+miceRatsValues.index = range(168)
+paintValues.index = range(168)
+allValues['Homes with Cracks or Holes'] = cracksValues['data_value']
+allValues['CracksMeasure'] = cracksValues['Measure']
+allValues['CracksMessage'] = cracksValues['message']
+allValues['Homes with Leaks'] = leaksValues['data_value']
+allValues['LeaksMeasure'] = leaksValues['Measure']
+allValues['LeaksMessage'] = leaksValues['message']
+allValues['Homes with Mice or Rats in the Building'] = miceRatsValues['data_value']
+allValues['miceRatsMeasure'] = miceRatsValues['Measure']
+allValues['miceRatsMessage'] = miceRatsValues['message']
+allValues['Pre-1960 Homes with Peeling Paint'] = paintValues['data_value']
+allValues['paintMeasure'] = paintValues['Measure']
+allValues['paintMessage'] = paintValues['message']
+
+print allValues.head(10)
+print allValues.describe()
+
+with open("data/allValues.pkl", 'wb') as file:
+    	    pickle.dump(allValues, file)
+
+
+
+
+
+
+
+#leadValues['avgLatLon'] = leadValues['ZIPCodes'].apply(avgLatLonFromZIP)
+
+
+
+
+
+
+

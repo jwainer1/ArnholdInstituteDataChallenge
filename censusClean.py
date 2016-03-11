@@ -1,0 +1,213 @@
+
+import pandas as pd
+from pandas import DataFrame
+import matplotlib.pyplot as plt
+import numpy as np
+import pickle
+from geopy.geocoders import Nominatim
+
+CD2Puma = {'BRX1' : '03710', 'BRX2' : '03710', 'BRX3' : '03705', 'BRX4' : '03708',\
+    'BRX5' : '03707', 'BRX6' : '03705', 'BRX7' : '03706', 'BRX8' : '03701',\
+    'BRX9' : '03709', 'BRX10' : '03703', 'BRX11' : '03704', 'BRX12' : '03702',\
+    'BRK1' : '04001', 'BRK2' : '04004', 'BRK3' : '04003', 'BRK4' : '04002',\
+    'BRK5' : '04008', 'BRK6' : '04005', 'BRK7' : '04012', 'BRK8' : '04006',\
+    'BRK9' : '04011', 'BRK10' : '04013', 'BRK11' : '04017', 'BRK12' : '04014', \
+    'BRK13' : '04018', 'BRK14' : '04015', 'BRK15' : '04016', 'BRK16' : '04007',\
+    'BRK17' : '04010', 'BRK18' : '04009', 'MN1' : '03810', 'MN2' : '03810',\
+    'MN3' : '03809', 'MN4' : '03807', 'MN5' : '03807', 'MN6' : '03808',\
+    'MN7' : '03806', 'MN8' : '03805', 'MN9' : '03802', 'MN10' : '03803',\
+    'MN11' : '03804', 'MN12' : '03801', 'QN1' : '04101', 'QN2' : '04109',\
+    'QN3' : '04102', 'QN4' : '04107', 'QN5' : '04110', 'QN6' : '04108',\
+    'QN7' : '04103', 'QN8' : '04106', 'QN9' : '04110', 'QN10' : '04113',\
+    'QN11' : '04104', 'QN12' : '04112', 'QN13' : '04105', 'QN14' : '04114',\
+    'SI1' : '03903', 'SI2' : '03902', 'SI3' : '03901'}
+
+Puma2ZCTA = {'03710' : [10451, 10454, 10455, 10459, 10474],\
+    '03703' : [10461, 10464, 10465, 10475], '03704' : [10469],\
+    '03702' : [10466, 10470], '03705' : [10456, 10460], '03708' : [10452],\
+    '03707' : [10453, 10457], '03706' : [10458, 10467, 10468],\
+    '03701' : [10463, 10471], '03709' : [10462, 10472, 10473],\
+    '04001' : [11211, 11222], '04013' : [11209, 11228, 11425],\
+    '04017' : [11204, 11214, 11223], '04014' : [11218, 11219],\
+    '04018' : [11224], '04015' : [11210, 11226, 11230],\
+    '04016' : [11229, 11235], '04007' : [11212, 11233], '04010' : [11203],\
+    '04009' : [11234, 11236], '04004' : [11201, 11205, 11217],\
+    '04003' : [11206, 11216, 11221], '04002' : [11237],\
+    '04008' : [11207, 11208, 11239], '04005' : [11215, 11231],\
+    '04012' : [11220, 11232], '04006' : [11213, 11238], '04011' : [11225],\
+    '03810' : [10004, 10005, 10006, 10007, 10012, 10013, 10014, 10038, 10271,\
+    10278, 10279, 10280, 10282], '03803' : [10026, 10030, 10037, 10039],\
+    '03804' : [10029, 10035], '03801' : [10032, 10033, 10034, 10040],\
+    '03809' : [10002, 10003, 10009],\
+    '03807' : [10001, 10011, 10018, 10019, 10020, 10036, 10103, 10110, 10111,\
+    10112, 10119, 10153, 10173, 10177, 10199],\
+    '03808' : [10010, 10016, 10017, 10022, 10152, 10154, 10165, 10167, 10168,\
+    10169, 10170, 10171, 10172, 10174], '03806' : [10023, 10024, 10025, 10069],\
+    '03805' : [10021, 10028, 10044, 10065, 10075, 10128, 10162],\
+    '03802' : [10027, 10031, 10115],\
+    '04101' : [11101, 11102, 11103, 11105, 11106],\
+    '04113' : [11414, 11417, 11419, 11420, 11430],\
+    '04104' : [11361, 11362, 11363, 11364],\
+    '04112' : [11412, 11423, 11433, 11434, 11435, 11436, 11451],\
+    '04105' : [11004, 11005, 11411, 11413, 11422, 11426, 11427, 11428, 11429],\
+    '04114' : [11691, 11692, 11693, 11694, 11697], '04109' : [11104, 11109, 11377],\
+    '04102' : [11369, 11370, 11371, 11372], '04107' : [11368, 11373],\
+    '04110' : [11378, 11379, 11385], '04108' : [11374, 11375],\
+    '04103' : [11351, 11354, 11355, 11356, 11357, 11358, 11359, 11360],\
+    '04106' : [11365, 11366, 11367, 11432],\
+    '04111' : [11415, 11416, 11418, 11421, 11424],\
+    '03903' : [10301, 10302, 10303, 10304, 10310],\
+    '03902' : [10305, 10306, 10311, 10314], '03901' : [10307, 10308, 10309, 10312]}
+
+UHF2ZIP = {101 : [10463, 10471], 102 : [10466, 10469, 10470, 10475],\
+    103 : [10458, 10467, 10468], 104 : [10461, 10462, 10464, 10465, 10472, 10473],\
+    105 : [10453, 10457, 10460], 106 : [10451, 10452, 10456],\
+    107 : [10454, 10455, 10459, 10474], 201 : [11211, 11222],\
+    202 : [11201, 11205, 11215, 11217, 11231],\
+    203 : [11213, 11212, 11216, 11233, 11238], 204 : [11207, 11208],\
+    205 : [11220, 11232], 206 : [11204, 11218, 11219, 11230],\
+    207 : [11203, 11210, 11225, 11226], 208 : [11234, 11236, 11239],\
+    209 : [11209, 11214, 11228], 210: [11223, 11224, 11229, 11235],\
+    211 : [11206, 11221, 11237], 301 : [10031, 10032, 10033, 10034, 10040],\
+    302 : [10026, 10027, 10030, 10037, 10039], 303 : [10029, 10035],\
+    304 : [10023, 10024, 10025], 305 : [10021, 10028, 10044, 10128],\
+    306 : [10001, 10011, 10018, 10019, 10020, 10036],\
+    307 : [10010, 10016, 10017, 10022], 308 : [10012, 10013, 10014],\
+    309 : [10002, 10003, 10009], 310 : [10004, 10005, 10006, 10007, 10038, 10280],\
+    401 : [11101, 11102, 11103, 11104, 11105, 11106],\
+    402 : [11368, 11369, 11370, 11372, 11373, 11377, 11378],\
+    403 : [11354, 11355, 11356, 11357, 11358, 11359, 11360],\
+    404 : [11361, 11362, 11363, 11364], 405 : [11374, 11375, 11379, 11385],\
+    406 : [11365, 11366, 11367],\
+    407 : [11414, 11415, 11416, 11417, 11418, 11419, 11420, 11421],\
+    408 : [11412, 11423, 11432, 11433, 11434, 11435, 11436],\
+    409 : [11004, 11005, 11411, 11413, 11422, 11426, 11427, 11428, 11429],\
+    410 : [11691, 11692, 11693, 11694, 11695, 11697], 501 : [10302, 10303, 10310],\
+    502 : [10301, 10304, 10305], 503 : [10314],\
+    504 : [10306, 10307, 10308, 10309, 10312]}
+
+CD2UHF = {'BRX1' : [], 'BRX2' : [], 'BRX3' : [], 'BRX4' : [], 'BRX5' : [],\
+    'BRX6' : [], 'BRX7' : [], 'BRX8' : [], 'BRX9' : [], 'BRX10' : [],\
+    'BRX11' : [], 'BRX12' : [], 'BRK1' : [], 'BRK2' : [], 'BRK3' : [],\
+    'BRK4' : [], 'BRK5' : [], 'BRK6' : [], 'BRK7' : [], 'BRK8' : [],\
+    'BRK9' : [], 'BRK10' : [], 'BRK11' : [], 'BRK12' : [], 'BRK13' : [],\
+    'BRK14' : [], 'BRK15' : [], 'BRK16' : [], 'BRK17' : [], 'BRK18' : [],\
+    'MN1' : [], 'MN2' : [], 'MN3' : [], 'MN4' : [], 'MN5' : [], 'MN6' : [],\
+    'MN7' : [], 'MN8' : [], 'MN9' : [], 'MN10' : [], 'MN11' : [], 'MN12' : [],\
+    'QN1' : [], 'QN2' : [], 'QN3' : [], 'QN4' : [], 'QN5' : [], 'QN6' : [],\
+    'QN7' : [], 'QN8' : [], 'QN9' : [], 'QN10' : [], 'QN11' : [], 'QN12' : [],\
+    'QN13' : [], 'QN14' : [], 'SI1' : [], 'SI2' : [], 'SI3' : []}
+
+CD2UHFAll = {'BRX1' : {-1: 0}, 'BRX2' : {-1: 0}, 'BRX3' : {-1: 0},\
+    'BRX4' : {-1: 0}, 'BRX5' : {-1: 0}, 'BRX6' : {-1: 0}, 'BRX7' : {-1: 0},\
+    'BRX8' : {-1: 0}, 'BRX9' : {-1: 0}, 'BRX10' : {-1: 0}, 'BRX11' : {-1: 0},\
+    'BRX12' : {-1: 0}, 'BRK1' : {-1: 0}, 'BRK2' : {-1: 0}, 'BRK3' : {-1: 0},\
+    'BRK4' : {-1: 0}, 'BRK5' : {-1: 0}, 'BRK6' : {-1: 0}, 'BRK7' : {-1: 0},\
+    'BRK8' : {-1: 0}, 'BRK9' : {-1: 0}, 'BRK10' : {-1: 0}, 'BRK11' : {-1: 0},\
+    'BRK12' : {-1: 0}, 'BRK13' : {-1: 0}, 'BRK14' : {-1: 0}, 'BRK15' : {-1: 0},\
+    'BRK16' : {-1: 0}, 'BRK17' : {-1: 0}, 'BRK18' : {-1: 0}, 'MN1' : {-1: 0},\
+    'MN2' : {-1: 0}, 'MN3' : {-1: 0}, 'MN4' : {-1: 0}, 'MN5' : {-1: 0},\
+    'MN6' : {-1: 0}, 'MN7' : {-1: 0}, 'MN8' : {-1: 0}, 'MN9' : {-1: 0},\
+    'MN10' : {-1: 0}, 'MN11' : {-1: 0}, 'MN12' : {-1: 0}, 'QN1' : {-1: 0},\
+    'QN2' : {-1: 0}, 'QN3' : {-1: 0}, 'QN4' : {-1: 0}, 'QN5' : {-1: 0},\
+    'QN6' : {-1: 0}, 'QN7' : {-1: 0}, 'QN8' : {-1: 0}, 'QN9' : {-1: 0},\
+    'QN10' : {-1: 0}, 'QN11' : {-1: 0}, 'QN12' : {-1: 0}, 'QN13' : {-1: 0},\
+    'QN14' : {-1: 0}, 'SI1' : {-1: 0}, 'SI2' : {-1: 0}, 'SI3' : {-1: 0}}
+
+
+filename = 'data/zip_to_zcta10_nyc.csv'
+zcta = pd.read_csv(filename)
+print zcta.head(10)
+zctaData = zcta[['ZIP', 'ZIPtype', 'ZCTA']]
+zips = zctaData['ZIP'].values
+zcta = zctaData['ZCTA'].values
+zcta2ZIP = {}
+
+#go through the zcta entries and add the ZIP codes to each zcta entry 
+#in the dictionary
+for eachZCTA, eachZIP in zip(zcta, zips):
+    print "ZCTA: ", eachZCTA, " ZIP: ", eachZIP
+    #if the ZCTA has never appeared before, add a new list for it 
+    if eachZCTA not in zcta2ZIP:
+        zcta2ZIP[eachZCTA] = [eachZIP]
+    #otherwise, append the entry to it
+    else:
+        zcta2ZIP[eachZCTA].append(eachZIP)
+
+print zcta2ZIP
+allLists = zcta2ZIP.values()
+
+for eachList in allLists:
+    if 10027 in eachList:
+        print "10027 is in this list: ", eachList
+
+
+homelessZIPs = []
+numHomeless = 0
+homefulZIPs = []
+numHomeful = 0
+allUHFZIPs = UHF2ZIP.values()
+cdKeys = CD2Puma.keys()
+#check and see if each community district (CD) corresponds to a single UHF
+for eachCD in cdKeys:
+    #map CD's to their Pumas, and each Puma to their ZCTA's
+    thePuma = CD2Puma[eachCD]
+    theZCTAs = Puma2ZCTA[thePuma]
+    #map each ZCTA to their ZIP codes
+    for eachZCTA in theZCTAs:
+        theZIPs = zcta2ZIP[eachZCTA]
+        for eachZIP in theZIPs:
+            #find the UHF for this ZIP
+            foundUHF = False
+            for eachList in allUHFZIPs:
+                #if we find the ZIP code in a list, show the UHF whose list it is
+                if eachZIP in eachList:
+                    #foundUHF = False
+                    for UHF, ZIPs in UHF2ZIP.iteritems():
+                        if eachList == ZIPs:
+                            print "ZIP ", eachZIP, " in CD ", eachCD, " is in UHF ", UHF
+                            if eachZIP not in homefulZIPs: 
+                               homefulZIPs.append(eachZIP)
+                               numHomeful += 1
+                            if UHF not in CD2UHF[eachCD]:
+                                CD2UHF[eachCD].append(UHF)
+                            if UHF not in CD2UHFAll[eachCD].keys():
+                                CD2UHFAll[eachCD][UHF] = 1
+                            elif UHF in CD2UHFAll[eachCD].keys():
+                                CD2UHFAll[eachCD][UHF] += 1    
+                            CD2UHFAll[eachCD][-1] += 1  
+                            foundUHF = True
+            if not foundUHF:
+                print "ZIP ", eachZIP, " in CD ", eachCD, " is not in a in UHF!"
+                if eachZIP not in homelessZIPs:
+                    homelessZIPs.append(eachZIP)
+                    numHomeless += 1
+print "Homeless ZIPs: ", homelessZIPs
+print "Total # homeless ZIPs: ", numHomeless
+print "Homeful ZIPs: ", homefulZIPs
+print "Total # homeful ZIPs: ", numHomeful
+print CD2UHF
+
+#count how many direct mappings versus indirect mappings there are
+listOfUHFs = CD2UHF.values()
+numDirectCDs = 0
+numIndirectCDs = 0
+for eachList in listOfUHFs:
+    if len(eachList) == 1:
+        numDirectCDs +=1
+    else:
+        numIndirectCDs += 1
+print "Number of direct mappings: ", numDirectCDs
+print "Number of indirect mappings: ", numIndirectCDs
+print "Total number of mappings: ", numDirectCDs + numIndirectCDs
+
+print CD2UHFAll
+
+
+    #pumaKeys = Puma2ZCTA.keys()
+    #for eachEntry in pumaKeys:
+    #    print "key: ", eachEntry, " values: ", Puma2ZCTA[eachEntry]
+ 
+
+ 
+
